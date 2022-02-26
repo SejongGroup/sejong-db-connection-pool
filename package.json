@@ -1,7 +1,7 @@
 {
     "name": "db-connection-pool",
-    "version": "1.0.5",
-    "description": "세종 데이터베이스 테스트",
+    "version": "1.0.7",
+    "description": "오라클/MySQL 데이터베이스 Pool",
     "keywords": [
         "express",
         "node"
