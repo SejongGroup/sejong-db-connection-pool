@@ -1,6 +1,6 @@
 {
     "name": "db-connection-pool",
-    "version": "1.0.3",
+    "version": "1.0.5",
     "description": "세종 데이터베이스 테스트",
     "keywords": [
         "express",
