@@ -1,0 +1,34 @@
+{
+    "name": "db-connection-pool",
+    "version": "1.0.3",
+    "description": "세종 데이터베이스 테스트",
+    "keywords": [
+        "express",
+        "node"
+    ],
+    "homepage": "https://github.com/libtv",
+    "main": "dist/index.js",
+    "bugs": {
+        "url": "https://github.com/A-big-fish-in-a-small-pond",
+        "email": "ahrl1994@gmail.com"
+    },
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": {
+        "name": "박종선",
+        "email": "ahrl1994@gmail.com"
+    },
+    "contributors": [
+        "박종선 <ahrl1994@gmail.com>",
+        "김준호 <libtv@naver.com>"
+    ],
+    "license": "ISC",
+    "dependencies": {
+        "ini": "^2.0.0",
+        "lodash": "^4.17.21",
+        "mysql": "^2.18.1",
+        "oracledb": "^5.3.0"
+    }
+}
