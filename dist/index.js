@@ -12,6 +12,7 @@ async function dbInstance(opt = options) {
 
         obj.getMySQL = pool.getMySQL.bind(pool);
         obj.getOracle = pool.getOracle.bind(pool);
+        obj.getPostgres = pool.getPostgres.bind(pool);
         obj.init = pool.init.bind(pool);
     }
 
