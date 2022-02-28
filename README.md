@@ -2,13 +2,13 @@
 
 <div align="center">
 
-db-connection-pool 라이브러리는 Mysql 사용자와 Oracle 사용자를 위해 만들었습니다.
+db-connection-pool 라이브러리는 Mysql 사용자와 Oracle 사용자 및 PostgreSQL 사용자를 위해 만들었습니다.
 
 </div>
 
 ### 요약
 
-> 해당 라이브러리는 MySQL과 Oracle의 사용을 여러대 사용하거나, 여러 서버에서 같은 설정파일을 이용하여 데이터베이스를 관리 및 접근할 때 유용할 것입니다.
+> 해당 라이브러리는 MySQL과 PostgreSQL 및 Oracle의 사용을 여러대 사용하거나, 여러 서버에서 같은 설정파일을 이용하여 데이터베이스를 관리 및 접근할 때 유용할 것입니다.
 
 설정파일을 통해 데이터베이스를 만들고, 데이터베이스의 접근은 사전에 만들어 놓은 Pool 객체에서 Connection 객체를 통해 접근하실 수 있습니다.
 
@@ -39,15 +39,23 @@ const { dbInstance } = require("db-connection-pool");
 먼저 데이터베이스의 설정 파일을 정의합니다.
 
 ```ini
+[postgresql1]
+host=localhost
+user=postgres
+password=root
+idleTimeoutMillis=30000
+connectionTimeoutMillis=2000
+max=20
+
 [mysql1]
 host=localhost
 user=root
-password=root2
+password=root
 port=3306
 database=test
 connectionLimit=4
 
-[oracle_cdr]
+[oracle1]
 user=root
 password=root
 connectString=localhost/XE
@@ -61,26 +69,49 @@ poolPingInterval=30
 그리고 해당 라이브러리를 사용하여 편리하게 데이터베이스를 접근할 수 있습니다.
 
 ```ts
+const { dbInstance } = require("db-connection-pool");
+
 const options = {
-    type: "INI" /* 데이터베이스 설정 파일의 확장자 (ini, json 지원) */,
-    path: "db.ini" /* 데이터베이스 설정 파일의 위치 */,
-    autoRepair:
-        false /* 데이터베이스의 접근 객체가 에러가 발생 시에 자동으로 리페어 해주는 역할 */,
+    type: "INI",
+    path: "../db.ini",
+    autoRepair: false,
 };
 
 async function hello() {
-    let a = await dbInstance(options); /* 데이터베이스 인스턴스를 생성합니다. */
-    let cdr = a.getOracle(0); /* 오라클 인스턴스를 가져옵니다 */
+    let a = await dbInstance(options);
+    let cdr = a.getOracle(0);
 
     cdr((err, conn) => {
+        if (err) {
+            return console.log(err);
+        }
+
         conn.execute("select * from DUAL", (err, res) => {
             console.log(res);
         });
     });
 
-    let cdr2 = a.getMySQL(0); /* MySQL 인스턴스를 가져옵니다 */
+    let cdr2 = a.getPostgres(0);
 
     cdr2((err, conn) => {
+        if (err) {
+            return console.log(err);
+        }
+        conn.query("SELECT NOW()", (err, result) => {
+            if (err) {
+                return console.error("Error executing query", err.stack);
+            }
+            console.log(result.rows);
+        });
+    });
+
+    let cdr3 = a.getMySQL(0);
+
+    cdr3((err, conn) => {
+        if (err) {
+            return console.log(err);
+        }
+
         conn.query("select * from test", (err, res) => {
             console.log(res);
         });
