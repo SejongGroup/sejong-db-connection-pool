@@ -1,12 +1,18 @@
 const mysql = require("mysql");
 const oracledb = require("oracledb");
+const { Pool } = require("pg");
 const { str2int } = require("../utils/string");
 const { waitForDB } = require("../utils/timeout");
 
 function DBConnectionPool(config, autoRepair = false) {
     this.config = config;
+
+    /** mysql, oracle, postgresql */
     this.mysql = [];
     this.oracle = [];
+    this.postgres = [];
+
+    /** pools */
     this.pools = [];
     this.autoRepair = {
         use: autoRepair,
@@ -29,6 +35,8 @@ DBConnectionPool.prototype.reset = async function () {
 
     this.mysql = [];
     this.oracle = [];
+    this.postgres = [];
+
     this.pools = [];
 };
 
@@ -42,6 +50,8 @@ DBConnectionPool.prototype.init = async function () {
                 this.mysqlConnection(key, val);
             } else if (key.match("oracle")) {
                 await this.oracleConnection(key, val);
+            } else if (key.match("postgres")) {
+                await this.postgresConnection(key, val);
             }
         })
     );
@@ -57,10 +67,7 @@ DBConnectionPool.prototype.mysqlConnection = async function (key, value) {
         return function (callback) {
             pool.getConnection(async (err, conn) => {
                 if (err) {
-                    if (
-                        self.autoRepair.use == true &&
-                        self.autoRepair.count < 5
-                    ) {
+                    if (self.autoRepair.use == true && self.autoRepair.count < 5) {
                         await waitForDB(1000);
                         await self.init();
                         self.autoRepair.count = self.autoRepair.count + 1;
@@ -70,6 +77,7 @@ DBConnectionPool.prototype.mysqlConnection = async function (key, value) {
                     return callback(err);
                 }
 
+                self.autoRepair.count = 0;
                 callback(null, conn);
                 return conn.release();
             });
@@ -77,7 +85,7 @@ DBConnectionPool.prototype.mysqlConnection = async function (key, value) {
     });
 };
 
-DBConnectionPool.prototype.oracleConnection = function (key, value) {
+DBConnectionPool.prototype.oracleConnection = async function (key, value) {
     return new Promise((resolve) => {
         value = str2int(value);
         let self = this;
@@ -89,10 +97,7 @@ DBConnectionPool.prototype.oracleConnection = function (key, value) {
             this.oracle.push((idx) => {
                 return async function (callback) {
                     if (err) {
-                        if (
-                            self.autoRepair.use == true &&
-                            self.autoRepair.count < 5
-                        ) {
+                        if (self.autoRepair.use == true && self.autoRepair.count < 5) {
                             await waitForDB(1000);
                             await self.init();
                             self.autoRepair.count = self.autoRepair.count + 1;
@@ -119,12 +124,44 @@ DBConnectionPool.prototype.oracleConnection = function (key, value) {
     });
 };
 
+DBConnectionPool.prototype.postgresConnection = async function (key, value) {
+    value = str2int(value);
+    let pool = new Pool(value);
+    let self = this;
+    this.pools.push(pool);
+
+    this.postgres.push((idx) => {
+        return function (callback) {
+            pool.connect(async (err, client, release) => {
+                if (err) {
+                    if (self.autoRepair.use == true && self.autoRepair.count < 5) {
+                        await waitForDB(1000);
+                        await self.init();
+                        self.autoRepair.count = self.autoRepair.count + 1;
+                        return self.getPostgres(idx)(callback);
+                    }
+
+                    return callback(err);
+                }
+
+                self.autoRepair.count = 0;
+                callback(null, client);
+                return release();
+            });
+        };
+    });
+};
+
 DBConnectionPool.prototype.getMySQL = function (idx) {
     return this.mysql[idx](idx);
 };
 
 DBConnectionPool.prototype.getOracle = function (idx) {
     return this.oracle[idx](idx);
+};
+
+DBConnectionPool.prototype.getPostgres = function (idx) {
+    return this.postgres[idx](idx);
 };
 
 module.exports.DBConnectionPool = DBConnectionPool;

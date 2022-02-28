@@ -1,11 +1,8 @@
 {
     "name": "db-connection-pool",
-    "version": "1.0.7",
-    "description": "오라클/MySQL 데이터베이스 Pool",
-    "keywords": [
-        "express",
-        "node"
-    ],
+    "version": "1.0.8",
+    "description": "Oracle/MySQL/PostgreSQL 데이터베이스 Pool",
+    "keywords": [],
     "homepage": "https://github.com/libtv",
     "main": "dist/index.js",
     "bugs": {
@@ -15,7 +12,6 @@
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
     },
-    "keywords": [],
     "author": {
         "name": "박종선",
         "email": "ahrl1994@gmail.com"
@@ -29,6 +25,7 @@
         "ini": "^2.0.0",
         "lodash": "^4.17.21",
         "mysql": "^2.18.1",
-        "oracledb": "^5.3.0"
+        "oracledb": "^5.3.0",
+        "pg": "^8.7.3"
     }
 }
