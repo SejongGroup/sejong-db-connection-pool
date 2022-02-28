@@ -20,7 +20,7 @@
         "박종선 <ahrl1994@gmail.com>",
         "김준호 <libtv@naver.com>"
     ],
-    "license": "ISC",
+    "license": "MIT",
     "dependencies": {
         "ini": "^2.0.0",
         "lodash": "^4.17.21",
