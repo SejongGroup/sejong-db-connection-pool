@@ -3,9 +3,11 @@ const oracledb = require("oracledb");
 const { Pool } = require("pg");
 const { str2int } = require("../utils/string");
 const { waitForDB } = require("../utils/timeout");
+const { ProcessQueue } = require("../vo/processQueue");
 
-function DBConnectionPool(config, autoRepair = false) {
+function DBConnectionPool(config, options) {
     this.config = config;
+    this.options = options;
 
     /** mysql, oracle, postgresql */
     this.mysql = new Map();
@@ -14,10 +16,7 @@ function DBConnectionPool(config, autoRepair = false) {
 
     /** pools */
     this.pools = new Map();
-    this.autoRepair = {
-        use: autoRepair,
-        count: 0,
-    };
+    this.configStruct = new Map();
 }
 
 DBConnectionPool.prototype.reset = async function () {
@@ -37,6 +36,7 @@ DBConnectionPool.prototype.reset = async function () {
     this.postgres.clear();
 
     this.pools.clear();
+    this.configStruct.clear();
 };
 
 DBConnectionPool.prototype.init = async function () {
@@ -45,6 +45,7 @@ DBConnectionPool.prototype.init = async function () {
 
     await Promise.all(
         Object.entries(data).map(async ([key, val]) => {
+            this.configStruct.set(key, val);
             if (key.match("mysql")) {
                 this.mysqlConnection(key, val);
             } else if (key.match("oracle")) {
@@ -56,112 +57,68 @@ DBConnectionPool.prototype.init = async function () {
     );
 };
 
-DBConnectionPool.prototype.deleteConnection = async function (pool, key) {
-    if (typeof pool != "undefined" && typeof pool.end == "function") {
-        await pool.end();
-    }
-
-    if (typeof pool != "undefined" && typeof pool.close == "function") {
-        await pool.close();
-    }
-
-    this.pools.delete(key);
-    this.autoRepair.count = this.autoRepair.count + 1;
-    await waitForDB(1000);
-};
-
-DBConnectionPool.prototype.mysqlConnection = async function (key, value) {
-    value = str2int(value);
-    let pool = mysql.createPool(value);
-    let self = this;
-    this.pools.set(key, pool);
-
-    this.mysql.set(key, (callback) => {
-        pool.getConnection(async (err, conn) => {
-            if (err) {
-                if (self.autoRepair.use == true && self.autoRepair.count < 5) {
-                    this.mysql.delete(key);
-                    await this.deleteConnection(pool, key);
-                    await this.mysqlConnection(key, value);
-                    return self.getMySQL(key)(callback);
-                }
-
-                return callback(err);
-            }
-
-            self.autoRepair.count = 0;
-            callback(null, conn);
-            return conn.release();
-        });
-    });
-};
-
-DBConnectionPool.prototype.oracleConnection = async function (key, value) {
+DBConnectionPool.prototype.mysqlConnection = function (key, value) {
     return new Promise((resolve) => {
         value = str2int(value);
-        let self = this;
 
-        oracledb.createPool(value, (err, pool) => {
-            this.pools.set(key, pool);
+        let pool = mysql.createPool(value);
+        this.pools.set(key, pool);
 
-            /** 함수 호출 */
-            this.oracle.set(key, async (callback) => {
-                if (err) {
-                    if (self.autoRepair.use == true && self.autoRepair.count < 5) {
-                        this.oracle.delete(key);
-                        await this.deleteConnection(pool, key);
-                        await this.oracleConnection(key, value);
-                        return self.getOracle(key)(callback);
-                    }
-                    return callback(err);
-                }
+        if (this.mysql.has(key) == false) {
+            this.mysql.set(key, new ProcessQueue(this.options.conCurrentSQL));
+        }
 
-                self.autoRepair.count = 0;
-                pool.getConnection((err2, conn) => {
-                    if (err2) {
-                        conn.release();
-                        return callback(err);
-                    }
-
-                    callback(null, conn);
-                    return conn.release();
-                });
-            });
-
-            resolve();
-        });
+        return resolve();
     });
 };
 
-DBConnectionPool.prototype.postgresConnection = async function (key, value) {
-    value = str2int(value);
-    let pool = new Pool(value);
-    let self = this;
-    this.pools.set(key, pool);
+DBConnectionPool.prototype.oracleConnection = function (key, value) {
+    return new Promise(async (resolve) => {
+        value = str2int(value);
+        let pool = null;
 
-    this.postgres.set(key, (callback) => {
-        pool.connect(async (err, client, release) => {
-            if (err) {
-                if (self.autoRepair.use == true && self.autoRepair.count < 5) {
-                    this.postgres.delete(key);
-                    await this.deleteConnection(pool, key);
-                    await this.postgresConnection(key, value);
-                    return self.getPostgres(key)(callback);
-                }
+        try {
+            pool = await oracledb.createPool(value);
+        } catch (err) {
+            pool = {};
+            pool.getConnection = (callback) => {
+                callback(err, null);
+            };
+            pool.close = () => {};
+        }
 
-                return callback(err);
-            }
+        this.pools.set(key, pool);
 
-            self.autoRepair.count = 0;
-            callback(null, client);
-            return release();
-        });
+        if (this.oracle.has(key) == false) {
+            this.oracle.set(key, new ProcessQueue(this.options.conCurrentSQL));
+        }
+
+        resolve();
+    });
+};
+
+DBConnectionPool.prototype.postgresConnection = function (key, value) {
+    return new Promise((resolve) => {
+        value = str2int(value);
+
+        let pool = new Pool(value);
+        this.pools.set(key, pool);
+
+        if (this.postgres.has(key) == false) {
+            this.postgres.set(key, new ProcessQueue(this.options.conCurrentSQL));
+        }
+
+        resolve();
     });
 };
 
 DBConnectionPool.prototype.getMySQL = function (key) {
     if (this.mysql.has(key)) {
-        return this.mysql.get(key);
+        let self = this;
+        let queue = this.mysql.get(key);
+        return function (callback) {
+            queue.push(self.process(key, queue, self.mysqlConnection.bind(self), callback));
+        };
     } else {
         return null;
     }
@@ -169,7 +126,11 @@ DBConnectionPool.prototype.getMySQL = function (key) {
 
 DBConnectionPool.prototype.getOracle = function (key) {
     if (this.oracle.has(key)) {
-        return this.oracle.get(key);
+        let self = this;
+        let queue = this.oracle.get(key);
+        return function (callback) {
+            queue.push(self.process(key, queue, self.oracleConnection.bind(self), callback));
+        };
     } else {
         return null;
     }
@@ -177,54 +138,68 @@ DBConnectionPool.prototype.getOracle = function (key) {
 
 DBConnectionPool.prototype.getPostgres = function (key) {
     if (this.postgres.has(key)) {
-        return this.postgres.get(key);
+        let self = this;
+        let queue = this.postgres.get(key);
+        return function (callback) {
+            queue.push(self.process(key, queue, self.postgresConnection.bind(self), callback));
+        };
     } else {
         return null;
     }
 };
 
-DBConnectionPool.prototype.getMySQLIdx = function (idx) {
-    let mysqlIter = this.mysql.entries();
-    for (let i = 0; i < idx - 1; i++) {
-        mysqlIter.next();
-    }
+DBConnectionPool.prototype.process = function (key, queue, connection, callback) {
+    let self = this;
+    return async function innerProcess(idx) {
+        let pool = self.pools.get(key);
 
-    let key = mysqlIter.next().value[0];
+        if (queue.autoRepaired != null && queue.autoRepaired != idx) {
+            await waitForDB(self.options.waitingForDB);
+            return innerProcess(idx);
+        }
 
-    if (typeof key != "undefined") {
-        return this.getMySQL(key);
-    } else {
-        return null;
-    }
+        pool.getConnection = pool.getConnection || pool.connect;
+
+        pool.getConnection(async (err, conn, release) => {
+            if (err) {
+                if (queue.autoRepairCount < self.options.attemptRepairCount) {
+                    if (queue.autoRepaired == null || queue.autoRepaired == idx) {
+                        queue.autoRepaired = idx;
+                        queue.autoRepairCount = queue.autoRepairCount + 1;
+                        self.pools.delete(key);
+                        await waitForDB(self.options.waitingForDB);
+                        await self.poolClose(pool);
+                        await connection(key, self.configStruct.get(key));
+                        return innerProcess(idx);
+                    } else {
+                        await waitForDB(self.options.waitingForDB);
+                        return innerProcess(idx);
+                    }
+                }
+
+                queue.autoRepaired = null;
+                callback(err);
+                throw new Error(err);
+            }
+
+            callback(err, conn);
+
+            if (typeof release == "undefined") {
+                return conn.release();
+            } else {
+                return release();
+            }
+        });
+    };
 };
 
-DBConnectionPool.prototype.getOracleIdx = function (idx) {
-    let oracleIter = this.oracle.entries();
-    for (let i = 0; i < idx - 1; i++) {
-        oracleIter.next();
+DBConnectionPool.prototype.poolClose = async function (pool) {
+    if (typeof pool != "undefined" && typeof pool.end == "function") {
+        await pool.end();
     }
 
-    let key = oracleIter.next().value[0];
-
-    if (typeof key != "undefined") {
-        return this.getOracle(key);
-    } else {
-        return null;
-    }
-};
-
-DBConnectionPool.prototype.getPostgresIdx = function (idx) {
-    let postgresIter = this.postgres.entries();
-    for (let i = 0; i < idx - 1; i++) {
-        postgresIter.next();
-    }
-
-    let key = postgresIter.next().value[0];
-
-    if (typeof key != "undefined") {
-        return this.getPostgres(key);
-    } else {
-        return null;
+    if (typeof pool != "undefined" && typeof pool.close == "function") {
+        await pool.close();
     }
 };
 
