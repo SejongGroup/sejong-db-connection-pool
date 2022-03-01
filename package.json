@@ -20,6 +20,9 @@
         "박종선 <ahrl1994@gmail.com>",
         "김준호 <libtv@naver.com>"
     ],
+    "publishConfig": {
+        "registry":"https://www.npmjs.com/package/db-connection-pool" 
+    },
     "license": "MIT",
     "dependencies": {
         "ini": "^2.0.0",
