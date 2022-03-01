@@ -8,20 +8,25 @@ const options = {
 
 async function hello() {
     let a = await dbInstance(options);
-    let cdr = a.getOracle(0);
+    let cdr = a.getOracle("oracle1");
 
     cdr((err, conn) => {
+        if (err) {
+            return console.log(err);
+        }
+
         conn.execute("select * from DUAL", (err, res) => {
             console.log(res);
         });
     });
 
-    let cdr2 = a.getPostgres(0);
+    let cdr2 = a.getPostgres("postgresql1");
 
     cdr2((err, conn) => {
         if (err) {
             return console.log(err);
         }
+
         conn.query("SELECT NOW()", (err, result) => {
             if (err) {
                 return console.error("Error executing query", err.stack);
@@ -30,11 +35,30 @@ async function hello() {
         });
     });
 
-    let cdr3 = a.getMySQL(0);
+    let cdr3 = a.getMySQL("mysql1");
 
     cdr3((err, conn) => {
+        if (err) {
+            return console.log(err);
+        }
+
         conn.query("select * from test", (err, res) => {
             console.log(res);
+        });
+    });
+
+    let cdr4 = a.getPostgresIdx(0);
+
+    cdr4((err, conn) => {
+        if (err) {
+            return console.log(err);
+        }
+
+        conn.query("SELECT NOW()", (err, result) => {
+            if (err) {
+                return console.error("Error executing query", err.stack);
+            }
+            console.log(result.rows);
         });
     });
 }
