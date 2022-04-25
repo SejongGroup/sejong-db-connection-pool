@@ -5,6 +5,9 @@ const { str2int } = require("../utils/string");
 const { waitForDB } = require("../utils/timeout");
 const { ProcessQueue } = require("../vo/processQueue");
 
+oracledb.poolTimeout = 10; // Never terminate
+oracledb.maxRows = 50000;
+
 function DBConnectionPool(config, options) {
     this.config = config;
     this.options = options;
@@ -78,7 +81,7 @@ DBConnectionPool.prototype.oracleConnection = function (key, value) {
         let pool = null;
 
         try {
-            pool = await oracledb.createPool(value);
+            pool = await oracledb.createPool({ ...value });
         } catch (err) {
             pool = {};
             pool.getConnection = (callback) => {
@@ -153,33 +156,20 @@ DBConnectionPool.prototype.process = function (key, queue, connection, callback)
     return async function innerProcess(idx) {
         let pool = self.pools.get(key);
 
-        if (queue.autoRepaired != null && queue.autoRepaired != idx) {
-            await waitForDB(self.options.waitingForDB);
-            return innerProcess(idx);
-        }
-
         pool.getConnection = pool.getConnection || pool.connect;
 
         pool.getConnection(async (err, conn, release) => {
             if (err) {
-                if (queue.autoRepairCount < self.options.attemptRepairCount) {
-                    if (queue.autoRepaired == null || queue.autoRepaired == idx) {
-                        queue.autoRepaired = idx;
-                        queue.autoRepairCount = queue.autoRepairCount + 1;
-                        self.pools.delete(key);
-                        await waitForDB(self.options.waitingForDB);
-                        await self.poolClose(pool);
-                        await connection(key, self.configStruct.get(key));
-                        return innerProcess(idx);
-                    } else {
-                        await waitForDB(self.options.waitingForDB);
-                        return innerProcess(idx);
-                    }
+                if (queue.autoRepairCount < self.options.attemptRepairCount && self.options.autoRepair == true) {
+                    queue.autoRepairCount = queue.autoRepairCount + 1;
+                    self.pools.delete(key);
+                    await self.poolClose(pool);
+                    await connection(key, self.configStruct.get(key));
+                    return innerProcess(idx);
+                } else {
+                    callback(err);
+                    throw new Error(err);
                 }
-
-                queue.autoRepaired = null;
-                callback(err);
-                throw new Error(err);
             }
 
             callback(err, conn);
