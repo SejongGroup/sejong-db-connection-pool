@@ -1,14 +1,10 @@
 {
     "name": "db-connection-pool",
-    "version": "1.1.2",
+    "version": "1.2.1",
     "description": "Oracle/MySQL/PostgreSQL 데이터베이스 Pool",
     "keywords": [],
     "homepage": "https://github.com/libtv",
     "main": "dist/index.js",
-    "bugs": {
-        "url": "https://github.com/A-big-fish-in-a-small-pond",
-        "email": "ahrl1994@gmail.com"
-    },
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1"
     },
@@ -16,9 +12,19 @@
         "name": "박종선",
         "email": "ahrl1994@gmail.com"
     },
+    "bugs": {
+        "url": "https://github.com/A-big-fish-in-a-small-pond",
+        "email": "ahrl1994@gmail.com"
+    },
     "contributors": [
-        "박종선 <ahrl1994@gmail.com>",
-        "김준호 <libtv@naver.com>"
+        {
+            "name": "박종선",
+            "email": "ahrl1994@gmail.com"
+        },
+        {
+            "name": "김준호",
+            "email": "libtv@naver.com"
+        }
     ],
     "publishConfig": {
         "registry": "https://www.npmjs.com/package/db-connection-pool"
