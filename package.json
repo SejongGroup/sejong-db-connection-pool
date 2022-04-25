@@ -1,6 +1,6 @@
 {
     "name": "db-connection-pool",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "description": "Oracle/MySQL/PostgreSQL 데이터베이스 Pool",
     "keywords": [],
     "homepage": "https://github.com/libtv",

@@ -4,7 +4,6 @@ class ProcessQueue {
         this.queproc = [];
         this.conCurrent = 0;
         this.autoRepairCount = 0;
-        this.autoRepaired = null;
         this.init(concurrent);
     }
 
