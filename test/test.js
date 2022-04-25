@@ -2,7 +2,7 @@ const { dbInstance } = require("../dist");
 
 const options = {
     type: "INI" /** 데이터베이스 설정 파일 확장자 */,
-    path: "../db.ini" /** 데이터베이스 설정파일 경로 */,
+    path: "db.ini" /** 데이터베이스 설정파일 경로 */,
     autoRepair: true /** 데이터베이스 접속 및 쿼리 진행 중 오류 발생 시 자동 리페어 기능 */,
     attemptRepairCount: 5 /** 자동리페어 기능을 수행하는 횟수 */,
     conCurrentSQL: 20 /** 하나의 데이터베이스를 동시 수행할 수 있는 최대 사용자 수 */,
